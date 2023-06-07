@@ -1,0 +1,30 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+torch = "*"
+torchvision = "*"
+torchaudio = "*"
+pyqt5 = "*"
+pandas = "*"
+pymysql = "*"
+opencv-python = "*"
+imutils = "*"
+pillow = "*"
+piexif = "*"
+scikit-learn = "*"
+tensorflow = "==2.10.0"
+keras = "*"
+numba = "*"
+numpy = "*"
+tqdm = "*"
+
+[dev-packages]
+black = "*"
+matplotlib = "*"
+
+[requires]
+python_version = "3.8"
+python_full_version = "3.8.16"

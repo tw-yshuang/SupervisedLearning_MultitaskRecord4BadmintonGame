@@ -1,0 +1,6 @@
+[submodule "submodule/UsefulTools"]
+	path = submodules/UsefulTools
+	url = git@github.com:tw-yshuang/Useful_Tools_for_Me.git
+[submodule "submodule/TrackNetv2"]
+	path = submodules/TrackNetv2
+	url = https://nol.cs.nctu.edu.tw:234/open-source/TrackNetv2.git
