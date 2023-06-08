@@ -56,7 +56,7 @@ def generate_hit_datasets(df: pd.DataFrame, max_frame_id: int, img_dir: Path, ta
             break
 
         imgs = torch.tensor(
-            np.stack([cv2.imread(str(img_dir / f'{idx}.jpg'), cv2.COLOR_BGR2RGB).transpose(2, 0, 1) for idx in frame_seq_nums])
+            np.stack([cv2.imread(str(img_dir / f'{idx:05}.jpg'), cv2.COLOR_BGR2RGB).transpose(2, 0, 1) for idx in frame_seq_nums])
         )
 
         save_pickle((imgs, process_label), str(target_dir / f'{frame_start}.pickle'))
@@ -84,7 +84,7 @@ def generate_miss_datasets(df: pd.DataFrame, max_frame_id: int, frame_ids: List[
 
         process_label = torch.zeros(23, dtype=torch.float32)
         imgs = torch.tensor(
-            np.stack([cv2.imread(str(img_dir / f'{idx}.jpg'), cv2.COLOR_BGR2RGB).transpose(2, 0, 1) for idx in frame_seq_nums])
+            np.stack([cv2.imread(str(img_dir / f'{idx:05}.jpg'), cv2.COLOR_BGR2RGB).transpose(2, 0, 1) for idx in frame_seq_nums])
         )
 
         save_pickle((imgs, process_label), str(target_dir / f'{miss_start_frame}.pickle'))
@@ -92,27 +92,33 @@ def generate_miss_datasets(df: pd.DataFrame, max_frame_id: int, frame_ids: List[
 
 if __name__ == '__main__':
     source_main_dir = Path('Data/Paper_used')
-    target_main_dir = Path('Data/Paper_used/pre_process/13seq')
+    target_main_dir = Path('Data/Paper_used/pre_process/frame13')
     image_main_dir = Path('Data/AIdea_used/pre-process')
 
     source_sub_dir_name = 'image'
 
-    filenames: List[str] = sorted(get_filenames(str(source_main_dir), '*.csv', withDirPath=False), reverse=True)
+    for data_type in ['test']:
+        filenames: List[str] = sorted(get_filenames(str(source_main_dir / data_type), '*.csv', withDirPath=False), reverse=True)
 
-    for filename in filenames:
-        data_type, data_id = filename.split('/')[:-1]
-        target_dir = '/'.join([data_type, data_id])
+        for filename in filenames:
+            data_id = filename.split('/')[0]
+            target_dir = '/'.join([data_type, data_id])
 
-        img_dir = image_main_dir / data_id / source_sub_dir_name
-        target_dir = target_main_dir / target_dir
+            img_dir = image_main_dir / data_id / source_sub_dir_name
+            target_dir = target_main_dir / target_dir
 
-        df = pd.read_csv(str(source_main_dir / filename))
-        frame_ids = sorted(map(int, [path.replace('.jpg', '') for path in get_filenames(str(img_dir), '*.jpg', withDirPath=False)]))
-        max_frame_id = max(frame_ids)
+            df = pd.read_csv(str(source_main_dir / data_type / filename))
+            frame_ids = sorted(
+                map(int, [path.replace('.jpg', '') for path in get_filenames(str(img_dir), '*.jpg', withDirPath=False)])
+            )
+            max_frame_id = max(frame_ids)
 
-        # generate_hit_datasets(df, max_frame_id, img_dir, target_dir=target_dir / 'hit')
+            hit_dir = target_dir / 'hit'
+            if check2create_dir(hit_dir):
+                continue
+            generate_hit_datasets(df, max_frame_id, img_dir, target_dir=hit_dir)
 
-        miss_dir = target_dir / 'miss'
-        if check2create_dir(miss_dir):
-            continue
-        generate_miss_datasets(df, max_frame_id, frame_ids, img_dir, target_dir=miss_dir)
+            miss_dir = target_dir / 'miss'
+            if check2create_dir(miss_dir):
+                continue
+            generate_miss_datasets(df, max_frame_id, frame_ids, img_dir, target_dir=miss_dir)
