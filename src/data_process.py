@@ -87,21 +87,22 @@ class Frame13Dataset(Dataset):
         data, label = load_pickle(str(self.dataset_info.data_dir / self.dataset_paths[idx]))
 
         start_idx = random.choice(self.choice_range)
-        hit_idx = self.center_idx - start_idx
+
+        isHitData = self.len_hit_data // (idx + 1)
+        isHitData = int(isHitData // (isHitData - 0.000001))
+        hitFrame_label_idx = isHitData * (self.center_idx - start_idx) + (1 - isHitData) * 5
 
         data = data[start_idx : start_idx + self.num_frame]
 
         label_hitFrame = torch.zeros(self.num_frame + 1, dtype=torch.float32)
-        isHitData = self.len_hit_data // (idx + 1)
-        isHitData //= isHitData - 0.000001
-        label_hitFrame[int(isHitData * hit_idx + (1 - isHitData) * 5)] = 1.0
+        label_hitFrame[hitFrame_label_idx] = 1.0
 
         label[-6::2] /= self.frame_size[1]
         label[-7::2] /= self.frame_size[0]
 
         label = torch.concat([label_hitFrame, label])
 
-        return data, label, hit_idx, isHitData
+        return data, label, torch.tensor(hitFrame_label_idx, dtype=torch.int8), torch.tensor(isHitData, dtype=torch.bool)
 
     def __len__(self):
         return self.len_dataset_path
@@ -140,7 +141,7 @@ if __name__ == '__main__':
 
     val_dataset = Frame13Dataset(side_range=2, dataset_info=DatasetInfo(data_dir=val_dir))
 
-    for i in range(0, 1501, 500):
+    for i in range(0, 201, 600):
         data, label, hit_idx, isHitData = val_dataset[i]
 
     train_loader, val_loader = get_dataloader(side_range=2, batch_size=2, num_workers=32, pin_memory=True)
