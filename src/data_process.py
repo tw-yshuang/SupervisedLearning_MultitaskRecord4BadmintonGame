@@ -94,7 +94,7 @@ class Frame13Dataset(Dataset):
         label_hitFrame = torch.zeros(self.num_frame + 1, dtype=torch.float32)
         isHitData = self.len_hit_data // (idx + 1)
         isHitData //= isHitData - 0.000001
-        label_hitFrame[isHitData * hit_idx + (1 - isHitData) * 6] = 1.0
+        label_hitFrame[int(isHitData * hit_idx + (1 - isHitData) * 5)] = 1.0
 
         label[-6::2] /= self.frame_size[1]
         label[-7::2] /= self.frame_size[0]
@@ -127,12 +127,21 @@ if __name__ == '__main__':
 
     # trainInfo = DatasetInfo(data_dir=DatasetInfo.data_dir / 'train')
 
+    train_dir = DatasetInfo.data_dir / 'train'
+    train_dir_ids = os.listdir(train_dir)
+
+    train_dataset = Frame13Dataset(side_range=2, dataset_info=DatasetInfo(data_dir=train_dir))
+
+    for i in range(0, 6001, 2000):
+        data, label, hit_idx, isHitData = train_dataset[i]
+
     val_dir = DatasetInfo.data_dir / 'val'
     val_dir_ids = os.listdir(val_dir)
 
     val_dataset = Frame13Dataset(side_range=2, dataset_info=DatasetInfo(data_dir=val_dir))
 
-    data, label, hit_idx, isHitData = val_dataset[500]
+    for i in range(0, 1501, 500):
+        data, label, hit_idx, isHitData = val_dataset[i]
 
     train_loader, val_loader = get_dataloader(side_range=2, batch_size=2, num_workers=32, pin_memory=True)
 
