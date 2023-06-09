@@ -108,9 +108,11 @@ class Frame13Dataset(Dataset):
         return self.len_dataset_path
 
 
-def get_dataloader(side_range: int = 2, batch_size: int = 32, num_workers: int = 8, pin_memory: bool = False):
-    train_data = Frame13Dataset(side_range, dataset_info=DatasetInfo(data_dir=DatasetInfo.data_dir / 'train'), isTrain=True)
-    val_data = Frame13Dataset(side_range, dataset_info=DatasetInfo(data_dir=DatasetInfo.data_dir / 'val'))
+def get_dataloader(
+    train_dir: Path, val_dir: Path, side_range: int = 2, batch_size: int = 32, num_workers: int = 8, pin_memory: bool = False
+):
+    train_data = Frame13Dataset(side_range, dataset_info=DatasetInfo(data_dir=train_dir), isTrain=True)
+    val_data = Frame13Dataset(side_range, dataset_info=DatasetInfo(data_dir=val_dir))
 
     train_loader = DataLoader(train_data, batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
     val_loader = DataLoader(val_data, batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)

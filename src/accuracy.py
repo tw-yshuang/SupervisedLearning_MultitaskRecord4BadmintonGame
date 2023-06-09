@@ -4,7 +4,20 @@ import torch
 
 idx_Hitter_start = -23
 idx_LandingX_start = -6
-haft_size = torch.tensor([720, 1280]) / 2
+model_acc_names = [
+    'HitFrame',
+    'Hitter',
+    'RoundHead',
+    'Backhand',
+    'BallHeight',
+    'LandingX',
+    'LandingY',
+    'HitterLocationX',
+    'HitterLocationY',
+    'DefenderLocationX',
+    'DefenderLocationY',
+    'BallType',
+]
 
 
 def calculate(preds: torch.Tensor, labels: torch.Tensor, hit_idxs: torch.Tensor, isHits: torch.Tensor):
@@ -14,9 +27,11 @@ def calculate(preds: torch.Tensor, labels: torch.Tensor, hit_idxs: torch.Tensor,
         cls_idx_select = hit_labels[:, :idx_LandingX_start].type(torch.bool)
         cls_acc_tensor = hit_preds[:, :idx_LandingX_start][cls_idx_select].reshape(-1, 6).mean(dim=0)
 
-        reg_acc_tensor = 1 - torch.square(hit_labels[:, idx_LandingX_start:] - hit_preds[:, idx_LandingX_start:]).mean(dim=0)
+        reg_acc_tensor = 1 - torch.abs(hit_labels[:, idx_LandingX_start:] - hit_preds[:, idx_LandingX_start:]).mean(dim=0)
 
-        return torch.hstack([cls_acc_tensor, reg_acc_tensor])
+        acc_record = torch.hstack([cls_acc_tensor, reg_acc_tensor, torch.tensor(0.0).to(cls_acc_tensor.device)])
+        acc_record[-1] = acc_record[:-1].mean()
+        return acc_record
 
 
 if __name__ == '__main__':

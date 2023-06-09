@@ -63,13 +63,14 @@ class IterativeCustomCompose:
 def RandomCrop(crop_size=(640, 640), p=0.5):
     def __RandomCrop(img: torch.Tensor, coordXYs: Union[torch.Tensor, None] = None):
         if random.random() < p:
+            orgH, orgW = img.shape[-2:]
             t, l, h, w = transforms.RandomCrop.get_params(img, crop_size)
             # imgs = [TF.crop(img, t, l, h, w) for img in imgs]
             img = TF.crop(img, t, l, h, w)
 
             if isinstance(coordXYs, (torch.Tensor, np.ndarray)) and coordXYs.nelement() != 0:
-                coordXYs[0] -= l  # related with X
-                coordXYs[1] -= t  # related with Y
+                coordXYs[0] -= l / orgH  # related with X
+                coordXYs[1] -= t / orgW  # related with Y
 
         return img, coordXYs
 
@@ -84,17 +85,17 @@ def RandomResizedCrop(
 ):
     def __RandomResizedCrop(img: torch.Tensor, coordXYs: Union[torch.Tensor, None] = None):
         if random.random() < p:
+            orgH, orgW = img.shape[-2:]
             t, l, h, w = transforms.RandomResizedCrop.get_params(img, scale, ratio)
             img = TF.resized_crop(img, t, l, h, w, size=sizeHW, antialias=True)
             if isinstance(coordXYs, (torch.Tensor, np.ndarray)) and coordXYs.nelement() != 0:
-                coordXYs[0] = (coordXYs[0] - l) * sizeHW[1] / w
-                coordXYs[1] = (coordXYs[1] - t) * sizeHW[0] / h
+                t, h = t / orgH, h / orgH
+                l, w = l / orgW, w / orgW
+                coordXYs[0] = (coordXYs[0] - l) / w
+                coordXYs[1] = (coordXYs[1] - t) / h
         else:
             w, h = img.shape[-1], img.shape[-2]
             img = TF.resize(img, size=sizeHW)
-            if isinstance(coordXYs, (torch.Tensor, np.ndarray)) and coordXYs.nelement() != 0:
-                coordXYs[0] *= sizeHW[1] / w
-                coordXYs[1] *= sizeHW[0] / h
 
         return img, coordXYs
 
@@ -106,7 +107,7 @@ def RandomHorizontalFlip(p=0.5):
         if random.random() < p:
             img = TF.hflip(img)
             if isinstance(coordXYs, (torch.Tensor, np.ndarray)) and coordXYs.nelement() != 0:
-                coordXYs[0] = img.shape[-1] - coordXYs[0]  # related with X
+                coordXYs[0] = 1.0 - coordXYs[0]  # related with X
 
         return img, coordXYs
 
@@ -126,16 +127,14 @@ def RandomRotation(
             angle = transforms.RandomRotation.get_params(degrees)
             img = TF.rotate(img, angle, interpolation, expand, center, fill)
             if isinstance(coordXYs, (torch.Tensor, np.ndarray)) and coordXYs.nelement() != 0:
-                centerX = img.shape[-1] // 2
-                centerY = img.shape[-2] // 2
-                coordX = coordXYs[0] - centerX
-                coordY = coordXYs[1] - centerY
+                coordX = coordXYs[0] - 0.5
+                coordY = coordXYs[1] - 0.5
 
                 angle = angle * math.pi
                 cos = math.cos(angle)
                 sin = math.sin(angle)
-                coordXYs[0] = coordX * cos - coordY * sin + centerX
-                coordXYs[1] = coordX * sin + coordY * cos + centerY
+                coordXYs[0] = coordX * cos - coordY * sin + 0.5
+                coordXYs[1] = coordX * sin + coordY * cos + 0.5
 
         return img, coordXYs
 

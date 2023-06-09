@@ -35,6 +35,8 @@ class LinNet(nn.Module):
 
 
 class BadmintonNet(nn.Module):
+    sub_model_order_names = ['HitFrame', 'Hitter', 'RoundHead', 'Backhand', 'BallHeight', 'BallType', 'XY_Reg']
+
     def __init__(self, in_seq, num_frame: int, loss_func_order: List[nn.Module]):
         super(BadmintonNet, self).__init__()
 
@@ -75,21 +77,23 @@ class BadmintonNet(nn.Module):
         return torch.hstack([lin(x) for lin in (self.lins)])
 
     def update(self, pred: torch.Tensor, labels: torch.Tensor, isTrain=True):
-        loss_record = 0.0
+        loss_record = torch.zeros(8, dtype=torch.float32, requires_grad=False, device=pred.device)
 
         idx_start = 0
-        for idx_end, loss_func, lin_optim in zip(self.end_idx_orders, self.loss_func_order, self.lin_optims):
+        for i, (idx_end, loss_func, lin_optim) in enumerate(zip(self.end_idx_orders, self.loss_func_order, self.lin_optims)):
             if isTrain:
                 loss: torch.Tensor = loss_func(pred[:, idx_start:idx_end], labels[:, idx_start:idx_end])
-                loss.backward(retain_graph=True)
+                loss.backward(retain_graph=(i + 1) % len(self.sub_model_order_names))
                 lin_optim.step()
                 lin_optim.zero_grad()
             else:
                 with torch.no_grad():
                     loss: torch.Tensor = loss_func(pred[:, idx_start:idx_end], labels[:, idx_start:idx_end])
 
-            loss_record += loss.item()
+            loss_record[i] = loss
             idx_start = idx_end
+
+        loss_record[-1] = loss_record.sum()
 
         if isTrain:
             self.eff_optim.step()
