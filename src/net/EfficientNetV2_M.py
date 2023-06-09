@@ -19,9 +19,11 @@ class Conveter(nn.Module):
 
         self.conv = nn.Sequential(
             # pw
-            nn.Conv3d(in_seq, 1, kernel_size=(1, 1, 1), stride=1, padding=0, bias=False),
+            nn.Conv3d(in_seq, 3, kernel_size=(1, 1, 1), stride=1, padding=0, bias=False),
             # nn.LazyBatchNorm3d(),
-            nn.BatchNorm3d(1),
+            nn.BatchNorm3d(3),
+            nn.ReLU(),
+            nn.Conv3d(3, 1, kernel_size=(1, 1, 1), stride=1, padding=0, bias=False),
             nn.ReLU(),
         )
 
