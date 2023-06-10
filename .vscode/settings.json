@@ -1,3 +1,6 @@
 {
-  "cSpell.words": ["optims", "torchvision"]
+  "cSpell.words": ["optims", "torchvision"],
+  "files.watcherExclude": {
+    "**/Data/": true
+}
 }

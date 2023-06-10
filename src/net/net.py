@@ -36,8 +36,9 @@ class LinNet(nn.Module):
 
 class BadmintonNet(nn.Module):
     sub_model_order_names = ['HitFrame', 'Hitter', 'RoundHead', 'Backhand', 'BallHeight', 'BallType', 'XY_Reg']
+    end_idx_orders = [-23, -21, -19, -17, -15, -6, None]
 
-    def __init__(self, in_seq: int, loss_func_order: List[nn.Module]):
+    def __init__(self, in_seq: int):
         super(BadmintonNet, self).__init__()
 
         eff_out = 2048
@@ -53,26 +54,36 @@ class BadmintonNet(nn.Module):
                 LinNet(eff_out, 6, isOneHot=False),  # -6~None
             ]
         )
-        self.end_idx_orders = [-23, -21, -19, -17, -15, -6, None]
-        self.loss_func_order = loss_func_order
 
         self.eff_optim: optim.Optimizer
         self.lin_optims: List[optim.Optimizer]
 
-    # def init_loss_funcs(self):
-    #     self.cn = nn.CrossEntropyLoss()
-    #     self.mse = nn.MSELoss()
-
-    def init_optims(self, eff_optim: optim.Optimizer, lin_optims: List[optim.Optimizer], eff_lr: float, lin_lrs: List[float]):
-        self.eff_optim = eff_optim(self.eff.parameters(), lr=eff_lr)
-        self.lin_optims = [optim(lin.parameters(), lr=lr) for optim, lr, lin in zip(lin_optims, lin_lrs, self.lins)]
-
-        # self.eff_optim = optim.Adam(self.eff.parameters(), lr=0.001)
-        # self.lin_optims = [optim.SGD(lin.parameters(), lr=0.001) for lin in self.lins]
-
     def forward(self, x):
         x = self.eff(x)
         return torch.hstack([lin(x) for lin in (self.lins)])
+
+
+class BadmintonNetOperator(nn.Module):
+    sub_model_order_names = BadmintonNet.sub_model_order_names
+    end_idx_orders = BadmintonNet.end_idx_orders
+
+    def __init__(
+        self,
+        model: BadmintonNet,
+        loss_func_order: List[nn.Module],
+        eff_optim: optim.Optimizer,
+        lin_optims: List[optim.Optimizer],
+        eff_lr: float,
+        lin_lrs: List[float],
+    ):
+        super(BadmintonNetOperator, self).__init__()
+
+        self.loss_func_order = loss_func_order
+
+        self.eff_optim: optim.Optimizer = eff_optim(model.eff.parameters(), lr=eff_lr)
+        self.lin_optims: List[optim.Optimizer] = [
+            optim(lin.parameters(), lr=lr) for optim, lr, lin in zip(lin_optims, lin_lrs, model.lins)
+        ]
 
     def update(self, pred: torch.Tensor, labels: torch.Tensor, isTrain=True):
         loss_record = torch.zeros(8, dtype=torch.float32, requires_grad=False, device=pred.device)
@@ -81,7 +92,7 @@ class BadmintonNet(nn.Module):
         for i, (idx_end, loss_func, lin_optim) in enumerate(zip(self.end_idx_orders, self.loss_func_order, self.lin_optims)):
             if isTrain:
                 loss: torch.Tensor = loss_func(pred[:, idx_start:idx_end], labels[:, idx_start:idx_end])
-                loss.backward(retain_graph=(i + 1) % len(BadmintonNet.sub_model_order_names))
+                loss.backward(retain_graph=(i + 1) % len(self.sub_model_order_names))
                 lin_optim.step()
                 lin_optim.zero_grad()
             else:
@@ -99,11 +110,13 @@ class BadmintonNet(nn.Module):
 
         return loss_record
 
-    def save(self, path: str, isFull: bool = False):
+    def save(self, model: BadmintonNet, path: str, isFull: bool = False):
         if isFull:
-            torch.save(self, path)
+            torch.save(model, path)
+            torch.save(self, f'{path}_BadmintonNetUpdate.pickle')
         else:
-            torch.save(self.state_dict(), path)
+            torch.save(model.state_dict(), path)
+            torch.save(self.state_dict(), f'{path}_BadmintonNetUpdate.pickle')
 
 
 if __name__ == '__main__':
@@ -114,12 +127,19 @@ if __name__ == '__main__':
 
     loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
 
-    bad_net = BadmintonNet(5, 5, loss_func_order).to('cuda:0')
-    bad_net.init_optims(eff_optim=eff_optim, lin_optims=lin_optims, eff_lr=eff_lr, lin_lrs=lin_lrs)
+    bad_net = BadmintonNet(5).to('cuda:1')
+    bad_net_operator = BadmintonNetOperator(
+        bad_net,
+        loss_func_order=loss_func_order,
+        eff_optim=eff_optim,
+        lin_optims=lin_optims,
+        eff_lr=eff_lr,
+        lin_lrs=lin_lrs,
+    )
 
     for _ in range(10):
-        aa = bad_net(torch.randn((2, 5, 3, 512, 512)).to('cuda:0'))
+        aa = bad_net(torch.randn((2, 5, 3, 512, 512)).to('cuda:1'))
 
-        cc = torch.tensor([[*[0.0] * 5, 1.0, *[0.0, 1.0] * 4, *torch.rand(6), *[0.0] * 8, 1.0]] * 2).to('cuda:0')
+        cc = torch.tensor([[*[0.0] * 5, 1.0, *[0.0, 1.0] * 4, *torch.rand(6), *[0.0] * 8, 1.0]] * 2).to('cuda:1')
 
-        print(bad_net.update(aa, cc))
+        print(bad_net_operator.update(aa, cc))
