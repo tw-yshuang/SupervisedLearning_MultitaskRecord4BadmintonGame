@@ -6,8 +6,6 @@ import torch
 from torchvision import transforms
 from torchvision.transforms import functional as TF
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 
 class CustomCompose:
     def __init__(self, transforms: List[Callable]) -> None:
@@ -40,7 +38,7 @@ class IterativeCustomCompose:
         self.device = device
 
     def __call__(self, batch_imgs: torch.Tensor, batch_coordXYs: Union[torch.Tensor, None] = None):
-        process_batch_imgs = torch.zeros((*batch_imgs.shape[0:3], *self.transform_img_size), dtype=torch.float32).to(device)
+        process_batch_imgs = torch.zeros((*batch_imgs.shape[0:3], *self.transform_img_size), dtype=torch.float32).to(self.device)
 
         imgs: torch.Tensor
         coordXYs: torch.Tensor
