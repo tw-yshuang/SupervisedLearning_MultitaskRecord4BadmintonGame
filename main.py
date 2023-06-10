@@ -22,7 +22,29 @@ from submodules.UsefulTools.FileTools.PickleOperator import save_pickle
 
 
 if __name__ == '__main__':
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    #! ========== Hyperparameter ==========
+
+    # * Datasets
+    BATCH_SIZE = 15
+    NUM_WORKERS = 16
+    side_range = 2
+    train_miss_rate = 1 / (side_range * 2 + 1)
+
+    # * model
+    eff_optim = optim.SGD
+    eff_lr = 1e-3
+    lin_optims = [optim.SGD] * 7
+    lin_lrs = [1e-3] * 7
+    loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
+    optim_kwargs = {'momentum': 0.9}
+    in_seq = side_range * 2 + 1
+
+    # * Train Process
+    NUM_EPOCHS = 30
+    EARLY_STOP = 10
+    CHECKPOINT = 5
+
     #! ========== Argumentation ==========
     sizeHW = (512, 512)
     argumentation_order_ls = [
@@ -59,31 +81,8 @@ if __name__ == '__main__':
         device=device,
     )
 
-    #! ========== Network ==========
-    eff_optim = optim.AdamW
-    eff_lr = 1e-4
-    lin_optims = [optim.AdamW] * 7
-    lin_lrs = [1e-4] * 7
-    loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
-
-    bad_net = BadmintonNet(5, loss_func_order).to(device)
-    bad_net.init_optims(eff_optim=eff_optim, lin_optims=lin_optims, eff_lr=eff_lr, lin_lrs=lin_lrs)
-
     #! ========== Datasets ==========
-    BATCH_SIZE = 15
-    # parallel_model = DistributedDataParallel(BATCH_SIZE % 16, bad_net).to(device)
-    # parallel_model = DistributedDataParallel(bad_net)
-    # parallel_model.update = bad_net.update
-    # parallel_model.save = bad_net.save
-    # parallel_model.sub_model_order_names = bad_net.sub_model_order_names
-    # parallel_model.end_idx_orders = bad_net.end_idx_orders
-    # parallel_model.loss_func_order = bad_net.loss_func_order
-    # parallel_model.eff_optim = bad_net.eff_optim
-    # parallel_model.lin_optims = bad_net.lin_optims
 
-    NUM_WORKERS = 16
-    side_range = 2
-    train_miss_rate = 1 / (side_range * 2 + 1)
     train_loader, val_loader = get_dataloader(
         train_dir=DatasetInfo.data_dir / 'train',
         val_dir=DatasetInfo.data_dir / 'val',
@@ -94,13 +93,29 @@ if __name__ == '__main__':
         pin_memory=True,
     )
 
+    #! ========== Network ==========
+
+    bad_net = BadmintonNet(in_seq, loss_func_order).to(device)
+    bad_net.init_optims(eff_optim=eff_optim, lin_optims=lin_optims, eff_lr=eff_lr, lin_lrs=lin_lrs, **optim_kwargs)
+    # parallel_model = DistributedDataParallel(BATCH_SIZE % 16, bad_net).to(device)
+    # parallel_model = DistributedDataParallel(bad_net)
+    # parallel_model.update = bad_net.update
+    # parallel_model.save = bad_net.save
+    # parallel_model.sub_model_order_names = bad_net.sub_model_order_names
+    # parallel_model.end_idx_orders = bad_net.end_idx_orders
+    # parallel_model.loss_func_order = bad_net.loss_func_order
+    # parallel_model.eff_optim = bad_net.eff_optim
+    # parallel_model.lin_optims = bad_net.lin_optims
+
     #! ========== Train Process ==========
-    saveDir = f'out/{time.strftime("%m%d-%H%M")}_{bad_net.__class__.__name__}_BS-{BATCH_SIZE}_{eff_optim.__name__}{eff_lr}'
+    saveDir = f'out/{time.strftime("%m%d-%H%M")}_{bad_net.__class__.__name__}_BS-{BATCH_SIZE}_{eff_optim.__name__}{eff_lr:.2e}'
     check2create_dir(saveDir)
 
     # model_process = DL_Model(parallel_model, train_iter_compose, test_iter_compose, device=device)
     model_process = DL_Model(bad_net, train_iter_compose, test_iter_compose, device=device)
-    records_tuple = model_process.training(30, train_loader, val_loader, saveDir=Path(saveDir), early_stop=10, checkpoint=5)
+    records_tuple = model_process.training(
+        NUM_WORKERS, train_loader, val_loader, saveDir=Path(saveDir), early_stop=EARLY_STOP, checkpoint=CHECKPOINT
+    )
 
     #! ========== Records Saving ==========
     for records, name in zip(records_tuple, ('train_loss_records', 'train_acc_records', 'val_loss_records', 'val_acc_records')):
