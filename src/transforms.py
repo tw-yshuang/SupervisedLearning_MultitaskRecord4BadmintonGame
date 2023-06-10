@@ -31,12 +31,13 @@ class CustomCompose:
 
 
 class IterativeCustomCompose:
-    def __init__(self, transforms: List[Callable], transform_img_size=(512, 512)) -> None:
+    def __init__(self, transforms: List[Callable], transform_img_size=(512, 512), device: str = 'cuda') -> None:
         '''
         transform_img_size: (H, W)
         '''
         self.compose = CustomCompose(transforms)
         self.transform_img_size = transform_img_size
+        self.device = device
 
     def __call__(self, batch_imgs: torch.Tensor, batch_coordXYs: Union[torch.Tensor, None] = None):
         process_batch_imgs = torch.zeros((*batch_imgs.shape[0:3], *self.transform_img_size), dtype=torch.float32).to(device)

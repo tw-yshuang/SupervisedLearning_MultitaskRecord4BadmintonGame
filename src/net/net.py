@@ -37,14 +37,14 @@ class LinNet(nn.Module):
 class BadmintonNet(nn.Module):
     sub_model_order_names = ['HitFrame', 'Hitter', 'RoundHead', 'Backhand', 'BallHeight', 'BallType', 'XY_Reg']
 
-    def __init__(self, in_seq, num_frame: int, loss_func_order: List[nn.Module]):
+    def __init__(self, in_seq: int, loss_func_order: List[nn.Module]):
         super(BadmintonNet, self).__init__()
 
         eff_out = 2048
         self.eff = EffNet(in_seq=in_seq, output_classes=eff_out)
         self.lins = nn.ModuleList(
             [
-                LinNet(eff_out, num_frame + 1, isOneHot=True),  # 0~num_frame
+                LinNet(eff_out, in_seq + 1, isOneHot=True),  # 0~num_frame
                 LinNet(eff_out, 2, isOneHot=True),  # -23~-21
                 LinNet(eff_out, 2, isOneHot=True),  # -21~-19
                 LinNet(eff_out, 2, isOneHot=True),  # -19~-17
@@ -58,8 +58,6 @@ class BadmintonNet(nn.Module):
 
         self.eff_optim: optim.Optimizer
         self.lin_optims: List[optim.Optimizer]
-        self.eff_lr: float
-        self.lin_lrs: List[float]
 
     # def init_loss_funcs(self):
     #     self.cn = nn.CrossEntropyLoss()
@@ -83,7 +81,7 @@ class BadmintonNet(nn.Module):
         for i, (idx_end, loss_func, lin_optim) in enumerate(zip(self.end_idx_orders, self.loss_func_order, self.lin_optims)):
             if isTrain:
                 loss: torch.Tensor = loss_func(pred[:, idx_start:idx_end], labels[:, idx_start:idx_end])
-                loss.backward(retain_graph=(i + 1) % len(self.sub_model_order_names))
+                loss.backward(retain_graph=(i + 1) % len(BadmintonNet.sub_model_order_names))
                 lin_optim.step()
                 lin_optim.zero_grad()
             else:
@@ -100,6 +98,12 @@ class BadmintonNet(nn.Module):
             self.eff_optim.zero_grad()
 
         return loss_record
+
+    def save(self, path: str, isFull: bool = False):
+        if isFull:
+            torch.save(self, path)
+        else:
+            torch.save(self.state_dict(), path)
 
 
 if __name__ == '__main__':

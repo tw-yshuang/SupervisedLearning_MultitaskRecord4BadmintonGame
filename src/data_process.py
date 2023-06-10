@@ -33,12 +33,9 @@ class DatasetInfo:
         self.hit_pickle_paths = sorted(get_filenames(str(self.data_dir), f'{self.hit_dir_name}/*.pickle', withDirPath=False))
         self.miss_pickle_paths = sorted(get_filenames(str(self.data_dir), f'{self.miss_dir_name}/*.pickle', withDirPath=False))
 
-        self.hit_frame13_ls: List[int] = list(map(int, [f.split('/')[-1].split('.pickle')[0] for f in self.hit_pickle_paths]))
-        self.miss_frame13_ls: List[int] = list(map(int, [f.split('/')[-1].split('.pickle')[0] for f in self.miss_pickle_paths]))
-
     def show_datasets_size(self):
-        print(f"hit: {len(self.hit_frame13_ls)}")
-        print(f"miss: {len(self.miss_frame13_ls)}")
+        print(f"hit: {len(self.hit_pickle_paths)}")
+        print(f"miss: {len(self.miss_pickle_paths)}")
 
 
 class CSVColumnNames:
@@ -79,7 +76,7 @@ class Frame13Dataset(Dataset):
             else self.dataset_info.hit_pickle_paths
         )
         self.len_dataset_path = len(self.dataset_paths)
-        self.len_hit_data = len(self.dataset_info.hit_frame13_ls)
+        self.len_hit_data = len(self.dataset_info.hit_pickle_paths)
 
     def __getitem__(self, idx):
         data: torch.Tensor
@@ -109,10 +106,31 @@ class Frame13Dataset(Dataset):
 
 
 def get_dataloader(
-    train_dir: Path, val_dir: Path, side_range: int = 2, batch_size: int = 32, num_workers: int = 8, pin_memory: bool = False
+    train_dir: Path,
+    val_dir: Path,
+    train_miss_rate: float = 0.2,
+    side_range: int = 2,
+    batch_size: int = 32,
+    num_workers: int = 8,
+    pin_memory: bool = False,
 ):
-    train_data = Frame13Dataset(side_range, dataset_info=DatasetInfo(data_dir=train_dir), isTrain=True)
-    val_data = Frame13Dataset(side_range, dataset_info=DatasetInfo(data_dir=val_dir))
+    train_info = DatasetInfo(data_dir=train_dir)
+    val_info = DatasetInfo(data_dir=val_dir)
+
+    num_train_miss = int(len(train_info.hit_pickle_paths) * train_miss_rate)
+    miss_gap = num_train_miss - len(train_info.hit_pickle_paths)
+    if miss_gap > 0:
+        train_info.miss_pickle_paths.extend(random.sample(train_info.miss_pickle_paths, k=miss_gap))
+    train_info.miss_pickle_paths = random.sample(train_info.miss_pickle_paths, k=num_train_miss)
+
+    print("Number of train datasets:")
+    train_info.show_datasets_size()
+
+    print("\nNumber of val datasets:")
+    val_info.show_datasets_size()
+
+    train_data = Frame13Dataset(side_range, dataset_info=train_info, isTrain=True)
+    val_data = Frame13Dataset(side_range, dataset_info=val_info)
 
     train_loader = DataLoader(train_data, batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
     val_loader = DataLoader(val_data, batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)

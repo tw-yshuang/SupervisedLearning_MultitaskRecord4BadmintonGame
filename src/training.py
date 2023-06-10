@@ -25,9 +25,26 @@ from src.transforms import IterativeCustomCompose
 from src.accuracy import calculate, model_acc_names
 
 
-# TODO: gogo
 class ModelPerform:
-    ...
+    def __init__(
+        self,
+        loss_order_names: List[str],
+        acc_order_names: List[str],
+        loss_records: torch.Tensor,
+        acc_records: torch.Tensor,
+        test_loss_records: torch.Tensor = None,
+        test_acc_records: torch.Tensor = None,
+    ) -> None:
+        self.acc_df = pd.DataFrame(self.convert(acc_records, acc_order_names))
+        self.loss_df = pd.DataFrame(self.convert(loss_records, loss_order_names))
+
+        if test_acc_records is not None:
+            self.test_loss_df = pd.DataFrame(self.convert(test_acc_records, acc_order_names))
+            self.test_acc_df = pd.DataFrame(self.convert(test_loss_records, loss_order_names))
+
+    @staticmethod
+    def convert(records: torch.Tensor, order_names: List[str]):
+        return {name: records[:, i].tolist() for i, name in enumerate(order_names)}
 
 
 class DL_Model:
@@ -36,37 +53,35 @@ class DL_Model:
         model: Union[nn.Module, BadmintonNet],
         train_transforms: IterativeCustomCompose,
         test_transforms: IterativeCustomCompose,
-        num_epoch: int,
-        early_stop: int = 50,
         device: str = 'cuda',
         model_perform=None,
         acc_func: Callable = None,
     ) -> None:
-        pass
-
         self.model = model
         self.train_transforms = train_transforms
         self.test_transforms = test_transforms
-        self.num_epoch = num_epoch
         self.device = device
         self.model_perform = model_perform
         self.acc_func = calculate if acc_func is None else acc_func
-        self.early_stop = early_stop
 
         self.console = Console()
+        self.loss_order_names = [*self.model.sub_model_order_names, 'Sum']
+        self.acc_order_names = [*model_acc_names, 'Mean']
 
-        self.best_loss_record = torch.zeros(8, dtype=torch.float32)
-        self.best_acc_record = torch.zeros(13, dtype=torch.float32)
+        self.epoch = 0
+        self.best_epoch = 0
+        self.best_loss_record = torch.ones(8, dtype=torch.float32) * 100
+        self.best_acc_record = torch.ones(13, dtype=torch.float32) * 0
 
     def create_measure_table(self):
         loss_table = Table(show_header=True, header_style='bold magenta')
         acc_table = Table(show_header=True, header_style='bold magenta')
 
         loss_table.add_column("Loss", style="dim")
-        [loss_table.add_column(name, justify='right') for name in [*self.model.sub_model_order_names, 'Sum']]
+        [loss_table.add_column(name, justify='right') for name in self.loss_order_names]
 
         acc_table.add_column("Acc", style="dim")
-        [acc_table.add_column(name, justify='right') for name in [*model_acc_names, 'Mean']]
+        [acc_table.add_column(name, justify='right') for name in self.acc_order_names]
 
         return loss_table, acc_table
 
@@ -100,7 +115,17 @@ class DL_Model:
 
         return loss_record, acc_record
 
-    def training(self, num_epoch: int, loader: DataLoader, val_loader: DataLoader = None, early_stop: int = 50, *args, **kwargs):
+    def training(
+        self,
+        num_epoch: int,
+        loader: DataLoader,
+        val_loader: DataLoader = None,
+        saveDir: Path = PROJECT_DIR,
+        early_stop: int = 50,
+        checkpoint: int = 20,
+        *args,
+        **kwargs,
+    ):
         data: torch.Tensor
         label: torch.Tensor
         hit_idxs: torch.Tensor
@@ -111,13 +136,16 @@ class DL_Model:
         if val_loader is not None:
             val_loss_records = torch.zeros_like(loss_records)
             val_acc_records = torch.zeros_like(acc_records)
-        for i in range(1, num_epoch + 1):
+
+        isStop = False
+        for self.epoch in range(num_epoch):
             loss_table, acc_table = self.create_measure_table()
 
+            isBest = False
             num_iter = 0
             self.model.train()
             for data, label, hit_idxs, isHits in tqdm(loader):
-                # data, label = data.to(self.device), label.to(self.device)
+                data, label = data.to(self.device), label.to(self.device)
 
                 with torch.no_grad():
                     batch_coordXYs = torch.stack(
@@ -131,41 +159,91 @@ class DL_Model:
                     label[:, self.model.end_idx_orders[-2] :: 2] = batch_coordXYs[0]
                     label[:, self.model.end_idx_orders[-2] + 1 :: 2] = batch_coordXYs[1]
 
-                data, label = data.to(self.device), label.to(self.device)
+                # data, label = data.to(self.device), label.to(self.device)
                 pred = self.model(data)
-                loss_records[i] += self.model.update(pred, label).cpu()
-                acc_records[i] += self.acc_func(pred, label, hit_idxs, isHits).cpu()
+                loss_records[self.epoch] += self.model.update(pred, label).cpu()
+                acc_records[self.epoch] += self.acc_func(pred, label, hit_idxs, isHits).cpu()
                 num_iter += 1
 
-            loss_records[i] /= num_iter
-            acc_records[i] /= num_iter
+            loss_records[self.epoch] /= num_iter
+            acc_records[self.epoch] /= num_iter
 
-            loss_table.add_row('Train', *[f'{l:.3e}' for l in loss_records[i]])
-            acc_table.add_row('Train', *[f'{a:.3f}' for a in acc_records[i]])
+            loss_table.add_row('Train', *[f'{l:.3e}' for l in loss_records[self.epoch]])
+            acc_table.add_row('Train', *[f'{a:.3f}' for a in acc_records[self.epoch]])
 
             if val_loader is not None:
-                val_loss_records[i], val_acc_records[i] = self.validating(val_loader)
+                val_loss_records[self.epoch], val_acc_records[self.epoch] = self.validating(val_loader)
 
-                loss_table.add_row('val', *[f'{l:.3e}' for l in val_loss_records[i]])
-                acc_table.add_row('val', *[f'{a:.3f}' for a in val_acc_records[i]])
+                loss_table.add_row('val', *[f'{l:.3e}' for l in val_loss_records[self.epoch]])
+                acc_table.add_row('val', *[f'{a:.3f}' for a in val_acc_records[self.epoch]])
+
+                best_loss_checker = self.best_loss_record > val_loss_records[self.epoch]
+                self.best_loss_record[best_loss_checker] = val_loss_records[self.epoch, best_loss_checker]
+
+                best_acc_checker = self.best_acc_record < val_acc_records[self.epoch]
+                self.best_acc_record[best_acc_checker] = val_acc_records[self.epoch, best_acc_checker]
+
+                if best_acc_checker.any() or best_loss_checker.any():
+                    self.best_epoch = self.epoch
+                    isBest = True
 
             self.console.print(loss_table)
             self.console.print(acc_table)
 
+            # * Save Stage
+            isCheckpoint = self.epoch % checkpoint == 0
+            if self.best_epoch:
+                save_path = f'lossSum-{val_loss_records[self.epoch, -1]:.3e}_accMean-{val_acc_records[self.epoch, -1]:.3f}.pt'
+                isStop = early_stop == (self.epoch - self.best_epoch)
+            else:
+                save_path = f'lossSum-{loss_records[self.epoch, -1]:.3e}_accMean-{acc_records[self.epoch, -1]:.3f}.pt'
+
+            save_path_heads: List[str] = []
+            if isCheckpoint:
+                save_path_heads.append(f'checkpoint_e{self.epoch:03}')
+            if isBest:
+                save_path_heads.extend(
+                    [f'bestLoss-{name}' for name, is_best in zip(self.loss_order_names, best_loss_checker) if is_best],
+                )
+                save_path_heads.extend(
+                    [f'bestAcc-{name}' for name, is_best in zip(self.acc_order_names, best_acc_checker) if is_best],
+                )
+
+            isStop += self.epoch + 1 == num_epoch
+            if isStop:
+                save_path_heads.append(f'final_e{self.epoch:03}_')
+
+            for i, path_head in enumerate(save_path_heads):
+                if i == 0:
+                    epoch_path = f'e{self.epoch:03}_{save_path}'
+                    self.model.save(saveDir / epoch_path)
+                    print(f"Save Model: {str_format(str(epoch_path), fore='g')}")
+
+                path: Path = saveDir / f'{path_head}.pt'
+                path.unlink(missing_ok=True)
+                path.symlink_to(epoch_path)
+                print(f"symlink: {str_format(str(path_head), fore='y'):<36} -> {epoch_path}")
+
+            if isStop:
+                print(str_format("Stop!!", fore='y'))
+                break
+
+        if val_loader is None:
+            return loss_records, acc_records
+        return loss_records, acc_records, val_loss_records, val_acc_records
+
 
 if __name__ == '__main__':
+    import time
+
     from torch import optim
     from torchvision import transforms
 
     from src.data_process import get_dataloader, DatasetInfo
     from src.transforms import RandomCrop, RandomResizedCrop, RandomHorizontalFlip, RandomRotation
 
-    eff_optim = optim.Adam
-    eff_lr = 1e-4
-    lin_optims = [optim.Adam] * 7
-    lin_lrs = [1e-4] * 7
-
-    loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
+    from submodules.UsefulTools.FileTools.FileOperator import check2create_dir
+    from submodules.UsefulTools.FileTools.PickleOperator import save_pickle
 
     sizeHW = (512, 512)
     argumentation_order_ls = [
@@ -200,16 +278,36 @@ if __name__ == '__main__':
         transform_img_size=sizeHW,
     )
 
+    eff_optim = optim.Adam
+    eff_lr = 1e-4
+    lin_optims = [optim.Adam] * 7
+    lin_lrs = [1e-4] * 7
+    loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
+
     bad_net = BadmintonNet(5, 5, loss_func_order).to('cuda')
     bad_net.init_optims(eff_optim=eff_optim, lin_optims=lin_optims, eff_lr=eff_lr, lin_lrs=lin_lrs)
 
+    BATCH_SIZE = 32
+
     train_set, val_set = get_dataloader(
-        train_dir=DatasetInfo.data_dir / 'train',
-        val_dir=DatasetInfo.data_dir / 'val',
-        batch_size=16,
-        num_workers=16,
+        train_dir=DatasetInfo.data_dir / 'test',
+        val_dir=DatasetInfo.data_dir / 'test',
+        batch_size=BATCH_SIZE,
+        num_workers=32,
         pin_memory=True,
     )
 
-    model_process = DL_Model(bad_net, train_iter_compose, test_iter_compose, 10, device='cuda')
-    model_process.training(10, train_set, val_set)
+    saveDir = f'out/{time.strftime("%m%d-%H%M")}_{bad_net.__class__.__name__}_BS-{BATCH_SIZE}'
+    check2create_dir(saveDir)
+
+    model_process = DL_Model(bad_net, train_iter_compose, test_iter_compose, device='cuda')
+    records_tuple = model_process.training(3, train_set, val_set, saveDir=Path(saveDir), early_stop=3, checkpoint=3)
+
+    for records, name in zip(records_tuple, ('train_loss_records', 'train_acc_records', 'val_loss_records', 'val_acc_records')):
+        save_pickle(records, f'{saveDir}/{name}.pickle')
+
+    model_perform = ModelPerform(model_process.loss_order_names, model_process.acc_order_names, *records_tuple)
+    model_perform.loss_df.to_csv(f'{saveDir}/train_loss.csv')
+    model_perform.acc_df.to_csv(f'{saveDir}/train_acc.csv')
+    model_perform.test_loss_df.to_csv(f'{saveDir}/val_loss.csv')
+    model_perform.test_acc_df.to_csv(f'{saveDir}/val_acc.csv')
