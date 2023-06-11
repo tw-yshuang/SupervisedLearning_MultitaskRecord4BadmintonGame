@@ -1,3 +1,7 @@
 {
-  "cSpell.words": ["optims", "torchvision"]
+  "editor.wordWrapColumn": 160,
+  "cSpell.words": ["optims", "torchvision"],
+  "files.watcherExclude": {
+    "**/Data/": true
+  }
 }

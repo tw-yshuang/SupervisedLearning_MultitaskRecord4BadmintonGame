@@ -9,7 +9,7 @@ from torchvision import transforms
 
 from src.data_process import get_dataloader, DatasetInfo
 from src.transforms import IterativeCustomCompose, RandomCrop, RandomResizedCrop, RandomHorizontalFlip, RandomRotation
-from src.net.net import BadmintonNet
+from src.net.net import BadmintonNet, BadmintonNetOperator
 from src.training import ModelPerform, DL_Model
 
 # from src.net.data_parallel_my_v2 import BalancedDataParallel
@@ -22,7 +22,7 @@ from submodules.UsefulTools.FileTools.PickleOperator import save_pickle
 
 
 if __name__ == '__main__':
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
     #! ========== Hyperparameter ==========
 
     # * Datasets
@@ -95,24 +95,23 @@ if __name__ == '__main__':
 
     #! ========== Network ==========
 
-    bad_net = BadmintonNet(in_seq, loss_func_order).to(device)
-    bad_net.init_optims(eff_optim=eff_optim, lin_optims=lin_optims, eff_lr=eff_lr, lin_lrs=lin_lrs, **optim_kwargs)
-    # parallel_model = DistributedDataParallel(BATCH_SIZE % 16, bad_net).to(device)
-    # parallel_model = DistributedDataParallel(bad_net)
-    # parallel_model.update = bad_net.update
-    # parallel_model.save = bad_net.save
-    # parallel_model.sub_model_order_names = bad_net.sub_model_order_names
-    # parallel_model.end_idx_orders = bad_net.end_idx_orders
-    # parallel_model.loss_func_order = bad_net.loss_func_order
-    # parallel_model.eff_optim = bad_net.eff_optim
-    # parallel_model.lin_optims = bad_net.lin_optims
+    bad_net = BadmintonNet(in_seq).to(device)
+    bad_net_operator = BadmintonNetOperator(
+        bad_net,
+        loss_func_order=loss_func_order,
+        eff_optim=eff_optim,
+        lin_optims=lin_optims,
+        eff_lr=eff_lr,
+        lin_lrs=lin_lrs,
+        **optim_kwargs,
+    )
 
     #! ========== Train Process ==========
     saveDir = f'out/{time.strftime("%m%d-%H%M")}_{bad_net.__class__.__name__}_BS-{BATCH_SIZE}_{eff_optim.__name__}{eff_lr:.2e}'
     check2create_dir(saveDir)
 
     # model_process = DL_Model(parallel_model, train_iter_compose, test_iter_compose, device=device)
-    model_process = DL_Model(bad_net, train_iter_compose, test_iter_compose, device=device)
+    model_process = DL_Model(bad_net, bad_net_operator, train_iter_compose, test_iter_compose, device=device)
     records_tuple = model_process.training(
         NUM_WORKERS, train_loader, val_loader, saveDir=Path(saveDir), early_stop=EARLY_STOP, checkpoint=CHECKPOINT
     )
