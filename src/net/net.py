@@ -75,14 +75,15 @@ class BadmintonNetOperator(nn.Module):
         lin_optims: List[optim.Optimizer],
         eff_lr: float,
         lin_lrs: List[float],
+        **kwargs
     ):
         super(BadmintonNetOperator, self).__init__()
 
         self.loss_func_order = loss_func_order
 
-        self.eff_optim: optim.Optimizer = eff_optim(model.eff.parameters(), lr=eff_lr)
+        self.eff_optim: optim.Optimizer = eff_optim(model.eff.parameters(), lr=eff_lr, **kwargs)
         self.lin_optims: List[optim.Optimizer] = [
-            optim(lin.parameters(), lr=lr) for optim, lr, lin in zip(lin_optims, lin_lrs, model.lins)
+            optim(lin.parameters(), lr=lr, **kwargs) for optim, lr, lin in zip(lin_optims, lin_lrs, model.lins)
         ]
 
     def update(self, pred: torch.Tensor, labels: torch.Tensor, isTrain=True):
