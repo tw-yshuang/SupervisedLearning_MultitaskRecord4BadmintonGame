@@ -88,7 +88,7 @@ class Frame13Dataset(Dataset):
 
         isHitData = self.len_hit_data // (idx + 1)
         isHitData = int(isHitData // (isHitData - 0.000001))
-        hitFrame_label_idx = isHitData * (self.center_idx - start_idx) + (1 - isHitData) * 5
+        hitFrame_label_idx = isHitData * (self.center_idx - start_idx) + (1 - isHitData) * (self.side_range * 2 + 1)
 
         data = data[start_idx : start_idx + self.num_frame]
 

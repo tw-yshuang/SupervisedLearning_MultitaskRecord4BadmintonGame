@@ -40,8 +40,8 @@ class ModelPerform:
 
         self.haveTestRecords = test_acc_records is not None
         if self.haveTestRecords:
-            self.test_loss_df = pd.DataFrame(self.convert(test_acc_records, acc_order_names))
-            self.test_acc_df = pd.DataFrame(self.convert(test_loss_records, loss_order_names))
+            self.test_loss_df = pd.DataFrame(self.convert(test_loss_records, loss_order_names))
+            self.test_acc_df = pd.DataFrame(self.convert(test_acc_records, acc_order_names))
 
     @staticmethod
     def convert(records: torch.Tensor, order_names: List[str]):
@@ -230,7 +230,7 @@ class DL_Model:
             for i, path_head in enumerate(save_path_heads):
                 if i == 0:
                     epoch_path = f'e{self.epoch:03}_{save_path}'
-                    self.model_operator.save(str(saveDir / epoch_path))
+                    self.model_operator.save(self.model, str(saveDir / epoch_path))
                     print(f"Save Model: {str_format(str(epoch_path), fore='g')}")
                     model_perform = ModelPerform(
                         self.loss_order_names,
