@@ -62,7 +62,7 @@ def generate_hit_datasets(df: pd.DataFrame, max_frame_id: int, img_dir: Path, ta
         save_pickle((imgs, process_label), str(target_dir / f'{frame_start}.pickle'))
 
 
-def generate_miss_datasets(df: pd.DataFrame, max_frame_id: int, frame_ids: List[int], img_dir: Path, target_dir: Path):
+def generate_miss_datasets(df: pd.DataFrame, frame_ids: List[int], img_dir: Path, target_dir: Path):
     num_data_set = len(df)
     frame_ids = frame_ids[:-12]
 

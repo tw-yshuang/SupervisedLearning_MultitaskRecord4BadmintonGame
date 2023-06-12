@@ -77,12 +77,12 @@ class DL_Model:
 
         self.console = Console()
         self.loss_order_names = [*self.model.sub_model_order_names, 'Sum']
-        self.acc_order_names = [*model_acc_names, 'Mean']
+        self.acc_order_names = model_acc_names
 
         self.epoch = 0
         self.best_epoch = 0
-        self.best_loss_record = torch.ones(8, dtype=torch.float32) * 100
-        self.best_acc_record = torch.ones(13, dtype=torch.float32) * 0
+        self.best_loss_record = torch.ones(len(self.loss_order_names), dtype=torch.float32) * 100
+        self.best_acc_record = torch.ones(len(self.acc_order_names), dtype=torch.float32) * 0
 
     def create_measure_table(self):
         loss_table = Table(show_header=True, header_style='bold magenta')
@@ -154,6 +154,7 @@ class DL_Model:
 
             isBest = False
             num_iter = 0
+            num_missM_nan = 0
             self.model.train()
             for data, label, hit_idxs, isHits in tqdm(loader):
                 data, label = data.to(self.device), label.to(self.device)
@@ -176,11 +177,14 @@ class DL_Model:
                 # data, label = data.to(self.device), label.to(self.device)
                 pred = self.model(data)
                 loss_records[self.epoch] += self.model_operator.update(pred, label).cpu()
-                acc_records[self.epoch] += self.acc_func(pred, label, hit_idxs, isHits).cpu()
+                a_r = self.acc_func(pred, label, hit_idxs, isHits).cpu()
+                num_missM_nan += 1 - (a_r[-1] // (a_r[-1] - 0.0000001))
+                acc_records[self.epoch] += a_r
                 num_iter += 1
 
             loss_records[self.epoch] /= num_iter
-            acc_records[self.epoch] /= num_iter
+            acc_records[self.epoch, :-2] /= num_iter
+            acc_records[self.epoch, -2:] /= num_iter - num_missM_nan
 
             loss_table.add_row('Train', *[f'{l:.3e}' for l in loss_records[self.epoch]])
             acc_table.add_row('Train', *[f'{a:.3f}' for a in acc_records[self.epoch]])
