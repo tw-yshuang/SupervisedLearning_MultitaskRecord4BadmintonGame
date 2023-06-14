@@ -22,7 +22,7 @@ from submodules.UsefulTools.FileTools.WordOperator import str_format
 from submodules.UsefulTools.FileTools.PickleOperator import load_pickle
 from src.net.net import BadmintonNet, BadmintonNetOperator
 from src.transforms import IterativeCustomCompose
-from src.accuracy import calculate, model_acc_names
+from evaluate.accuracy import calculate, model_acc_names
 
 
 class ModelPerform:
@@ -211,10 +211,10 @@ class DL_Model:
             # * Save Stage
             isCheckpoint = self.epoch % checkpoint == 0
             if self.best_epoch:
-                save_path = f'lossSum-{val_loss_records[self.epoch, -1]:.3e}_accMean-{val_acc_records[self.epoch, -1]:.3f}.pt'
+                save_path = f'lossSum-{val_loss_records[self.epoch, -1]:.3e}_accMean-{val_acc_records[self.epoch, -6]:.3f}.pt'
                 isStop = early_stop == (self.epoch - self.best_epoch)
             else:
-                save_path = f'lossSum-{loss_records[self.epoch, -1]:.3e}_accMean-{acc_records[self.epoch, -1]:.3f}.pt'
+                save_path = f'lossSum-{loss_records[self.epoch, -1]:.3e}_accMean-{acc_records[self.epoch, -6]:.3f}.pt'
 
             save_path_heads: List[str] = []
             if isCheckpoint:

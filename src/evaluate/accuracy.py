@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 if __name__ == '__main__':
     import sys
 

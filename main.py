@@ -22,26 +22,30 @@ from submodules.UsefulTools.FileTools.PickleOperator import save_pickle
 
 
 if __name__ == '__main__':
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:3' if torch.cuda.is_available() else 'cpu')
+    random.seed(42)
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
     #! ========== Hyperparameter ==========
 
     # * Datasets
     BATCH_SIZE = 15
-    NUM_WORKERS = 16
-    side_range = 2
+    NUM_WORKERS = 10
+    side_range = 1
     train_miss_rate = 1 / (side_range * 2 + 1)
 
     # * model
-    eff_optim = optim.SGD
-    eff_lr = 1e-3
-    lin_optims = [optim.SGD] * 7
-    lin_lrs = [1e-3] * 7
+    eff_optim = optim.Adam
+    eff_lr = 1e-4
+    lin_optims = [optim.Adam] * 7
+    lin_lrs = [1e-4] * 7
     loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
-    optim_kwargs = {'momentum': 0.9}
+    optim_kwargs = {}  # {'momentum': 0.9} # or {}
     in_seq = side_range * 2 + 1
 
     # * Train Process
-    NUM_EPOCHS = 30
+    NUM_EPOCHS = 100
     EARLY_STOP = 10
     CHECKPOINT = 5
 
@@ -59,7 +63,7 @@ if __name__ == '__main__':
         transforms.RandomApply(
             [transforms.ElasticTransform(alpha=random.random() * 200.0, sigma=8.0 + random.random() * 7.0)], p=0.25
         ),
-        RandomRotation(degrees=[-5, 5], p=0.75),
+        RandomRotation(degrees=[-3, 3], p=0.75),
     ]
 
     train_iter_compose = IterativeCustomCompose(
@@ -107,13 +111,13 @@ if __name__ == '__main__':
     )
 
     #! ========== Train Process ==========
-    saveDir = f'out/{time.strftime("%m%d-%H%M")}_{bad_net.__class__.__name__}_BS-{BATCH_SIZE}_{eff_optim.__name__}{eff_lr:.2e}'
+    saveDir = f'out/{time.strftime("%m%d-%H%M")}_{bad_net.__class__.__name__}_BS-{BATCH_SIZE}_{eff_optim.__name__}{eff_lr:.2e}_Side{side_range}'
     check2create_dir(saveDir)
 
     # model_process = DL_Model(parallel_model, train_iter_compose, test_iter_compose, device=device)
     model_process = DL_Model(bad_net, bad_net_operator, train_iter_compose, test_iter_compose, device=device)
     records_tuple = model_process.training(
-        NUM_WORKERS, train_loader, val_loader, saveDir=Path(saveDir), early_stop=EARLY_STOP, checkpoint=CHECKPOINT
+        NUM_EPOCHS, train_loader, val_loader, saveDir=Path(saveDir), early_stop=EARLY_STOP, checkpoint=CHECKPOINT
     )
 
     #! ========== Records Saving ==========

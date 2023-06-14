@@ -75,7 +75,7 @@ class BadmintonNetOperator(nn.Module):
         lin_optims: List[optim.Optimizer],
         eff_lr: float,
         lin_lrs: List[float],
-        **kwargs
+        **kwargs,
     ):
         super(BadmintonNetOperator, self).__init__()
 

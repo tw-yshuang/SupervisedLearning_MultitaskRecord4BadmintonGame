@@ -172,7 +172,7 @@ if __name__ == '__main__':
     train_dir = DatasetInfo.data_dir / 'train'
     train_dir_ids = os.listdir(train_dir)
 
-    train_dataset = Frame13Dataset(side_range=2, dataset_info=DatasetInfo(data_dir=train_dir))
+    train_dataset = Frame13Dataset(side_range=1, dataset_info=DatasetInfo(data_dir=train_dir))
 
     for i in range(0, 6001, 2000):
         data, label, hit_idx, isHitData = train_dataset[i]
