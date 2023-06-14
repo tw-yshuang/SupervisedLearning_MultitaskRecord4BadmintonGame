@@ -1,13 +1,15 @@
-import pathlib import path
-import pandas as pd
+from pathlib import Path
 from datetime import datetime
+
+import pandas as pd
 from matplotlib import pyplot as plt
+
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 if __name__ == '__main__':
     import sys
 
     sys.path.append(str(PROJECT_DIR))
-from Useful_Tools_for_Me.FileTools.FileOperator import check2create_dir, get_filenames
+from submodules.UsefulTools. import check2create_dir, get_filenames
 
 def get_legend_name(csv_path:str):
     opt = csv_path.split('_')[-3][:-8]
