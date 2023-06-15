@@ -42,20 +42,23 @@ model_acc_names = [
 def calculate(preds: torch.Tensor, labels: torch.Tensor, hit_idxs: torch.Tensor, isHits: torch.Tensor):
     with torch.no_grad():
         hit_preds, not_hit_preds, hit_labels, hitFrame_idxs_select = (
-            preds[isHits],
-            preds[~isHits],
-            labels[isHits],
-            hit_idxs[isHits].type(torch.int),
+            preds[isHits].squeeze(dim=0),
+            preds[~isHits].squeeze(dim=0),
+            labels[isHits].squeeze(dim=0),
+            hit_idxs[isHits].squeeze(dim=0).type(torch.int),
         )
 
         miss_idx = not_hit_preds.shape[-1] + idx_Hitter_start - 1  # because idx_Hitter_start is count from behind(negative value)
 
         # miss factor analysis
         missHP = hit_preds[:, miss_idx].mean()
-        missMP = not_hit_preds[:, miss_idx].mean()
-
-        not_hit_pred_idxs = not_hit_preds[:, :idx_Hitter_start].argmax(dim=1)
-        missM = (not_hit_pred_idxs == miss_idx).sum() / not_hit_preds.shape[0]
+        if not_hit_preds.nelement() != 0:
+            missMP = not_hit_preds[:, miss_idx].mean()
+            not_hit_pred_idxs = not_hit_preds[:, :idx_Hitter_start].argmax(dim=1)
+            missM = (not_hit_pred_idxs == miss_idx).sum() / not_hit_preds.shape[0]
+        else:
+            missMP = torch.tensor(0.0)
+            missM = torch.tensor(0.0)
 
         start_idx = 0
         cls_acc_tensor = torch.zeros(num_cls_task, dtype=torch.float32, device=preds.device)
@@ -67,7 +70,7 @@ def calculate(preds: torch.Tensor, labels: torch.Tensor, hit_idxs: torch.Tensor,
 
             if i == 0:
                 missH = (one_task_hit_pred_idxs == miss_idx).sum() / hit_preds.shape[0]
-                hitFrameP = hit_preds[range(hitFrame_idxs_select.shape[0]), hitFrame_idxs_select].mean()
+                hitFrameP = hit_preds[range(hitFrame_idxs_select.nelement()), hitFrame_idxs_select].mean()
 
         # # TODO: replace to the argmax()
         # cls_idx_select = hit_labels[:, :idx_LandingX_start].type(torch.bool)

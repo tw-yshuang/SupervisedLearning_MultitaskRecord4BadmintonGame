@@ -100,7 +100,7 @@ class Frame13Dataset(Dataset):
 
         label = torch.concat([label_hitFrame, label])
 
-        return data, label, torch.tensor(hitFrame_label_idx, dtype=torch.int8), torch.tensor(isHitData, dtype=torch.bool)
+        return data, label, torch.tensor(hitFrame_label_idx, dtype=torch.int8), torch.tensor(isHitData, dtype=torch.bool), start_idx
 
     def __len__(self):
         return self.len_dataset_path
@@ -157,6 +157,21 @@ def get_dataloader(
         val_loader = DataLoader(val_data, batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
 
     return train_loader, val_loader
+
+
+# def get_test_dataloader(
+#     dir: Path,
+#     side_range: int = 2,
+#     batch_size: int = 32,
+#     num_workers: int = 8,
+#     pin_memory: bool = False,
+# ):
+#     test_info = DatasetInfo(data_dir=dir)
+
+#     test_dataset = Frame13Dataset(side_range, dataset_info=test_info)
+#     train_loader = DataLoader(test_dataset, batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
+
+#     return train_loader
 
 
 if __name__ == '__main__':

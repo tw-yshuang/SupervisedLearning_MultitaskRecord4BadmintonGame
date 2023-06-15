@@ -22,7 +22,7 @@ from submodules.UsefulTools.FileTools.WordOperator import str_format
 from submodules.UsefulTools.FileTools.PickleOperator import load_pickle
 from src.net.net import BadmintonNet, BadmintonNetOperator
 from src.transforms import IterativeCustomCompose
-from evaluate.accuracy import calculate, model_acc_names
+from src.evaluate.accuracy import calculate, model_acc_names
 
 
 class ModelPerform:
@@ -102,7 +102,7 @@ class DL_Model:
         loss_record = torch.zeros_like(self.best_loss_record)
         acc_record = torch.zeros_like(self.best_acc_record)
         with torch.no_grad():
-            for data, label, hit_idxs, isHits in tqdm(loader):
+            for data, label, hit_idxs, isHits, _ in tqdm(loader):
                 data, label = data.to(self.device), label.to(self.device)
 
                 batch_coordXYs = torch.stack(
@@ -156,7 +156,7 @@ class DL_Model:
             num_iter = 0
             num_missM_nan = 0
             self.model.train()
-            for data, label, hit_idxs, isHits in tqdm(loader):
+            for data, label, hit_idxs, isHits, _ in tqdm(loader):
                 data, label = data.to(self.device), label.to(self.device)
 
                 with torch.no_grad():

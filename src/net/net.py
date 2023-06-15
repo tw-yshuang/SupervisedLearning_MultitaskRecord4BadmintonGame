@@ -119,28 +119,65 @@ class BadmintonNetOperator(nn.Module):
             torch.save(model.state_dict(), path)
             torch.save(self.state_dict(), f'{path}_BadmintonNetUpdate.pickle')
 
+    @staticmethod
+    def load(obj: nn.Module, path: str, isFull: bool = False, device: str = 'cpu'):
+        if isFull:
+            obj = torch.load(path)
+        else:
+            obj.load_state_dict(torch.load(path, map_location=device))
+            # obj.load_state_dict(torch.load(path))
+        return obj
+
 
 if __name__ == '__main__':
+    # eff_optim = optim.Adam
+    # eff_lr = 1e-4
+    # lin_optims = [optim.Adam] * 7
+    # lin_lrs = [1e-4] * 7
+
+    # loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
+
+    # bad_net = BadmintonNet(5).to('cuda:1')
+    # bad_net_operator = BadmintonNetOperator(
+    #     bad_net,
+    #     loss_func_order=loss_func_order,
+    #     eff_optim=eff_optim,
+    #     lin_optims=lin_optims,
+    #     eff_lr=eff_lr,
+    #     lin_lrs=lin_lrs,
+    # )
+
+    # for _ in range(10):
+    #     aa = bad_net(torch.randn((2, 5, 3, 512, 512)).to('cuda:1'))
+
+    #     cc = torch.tensor([[*[0.0] * 5, 1.0, *[0.0, 1.0] * 4, *torch.rand(6), *[0.0] * 8, 1.0]] * 2).to('cuda:1')
+
+    #     print(bad_net_operator.update(aa, cc))
+
     eff_optim = optim.Adam
     eff_lr = 1e-4
     lin_optims = [optim.Adam] * 7
     lin_lrs = [1e-4] * 7
-
     loss_func_order = [*[nn.CrossEntropyLoss()] * 6, nn.MSELoss()]
+    optim_kwargs = {}  # {'momentum': 0.9} # or {}
+    in_seq = 5
 
-    bad_net = BadmintonNet(5).to('cuda:1')
+    model_path = 'out/0612-2336_BadmintonNet_BS-15_Adam1.00e-04_Side2/bestAcc-Mean.pt'
+    optmiz_path = (
+        'out/0612-2336_BadmintonNet_BS-15_Adam1.00e-04_Side2/e097_lossSum-4.668e+00_accMean-0.000.pt_BadmintonNetUpdate.pickle'
+    )
+
+    net = BadmintonNet(in_seq=5)
+    net = BadmintonNetOperator.load(net, model_path)
+
     bad_net_operator = BadmintonNetOperator(
-        bad_net,
+        net,
         loss_func_order=loss_func_order,
         eff_optim=eff_optim,
         lin_optims=lin_optims,
         eff_lr=eff_lr,
         lin_lrs=lin_lrs,
+        **optim_kwargs,
     )
-
-    for _ in range(10):
-        aa = bad_net(torch.randn((2, 5, 3, 512, 512)).to('cuda:1'))
-
-        cc = torch.tensor([[*[0.0] * 5, 1.0, *[0.0, 1.0] * 4, *torch.rand(6), *[0.0] * 8, 1.0]] * 2).to('cuda:1')
-
-        print(bad_net_operator.update(aa, cc))
+    operator = BadmintonNetOperator.load(bad_net_operator, optmiz_path)
+    aa = 0
