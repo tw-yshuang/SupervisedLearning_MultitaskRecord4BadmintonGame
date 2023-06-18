@@ -42,18 +42,23 @@ def get_static_handcraft_table(target_dir: str, data_dir: str, sub_dir: str, sid
     # Data/Paper_used/test
     handcraft_table_ls = []
     hand_add = 1 / (side * 2 + 1)
-    hand_sub = hand_add / (side * 2)
+    hand_sub = hand_add
+    side = 2  # * because vector method's pickle file is frame5
+
     for video_startIDs in video_startIDs_ls:
-        # idxs = np.array(video_startIDs) + side
-        idxs = np.array(video_startIDs)
+        idxs = np.array(video_startIDs) + side
         handcraft_table = torch.zeros(idxs.max() + side * 2, dtype=torch.float32)
+
         handcraft_table[idxs] += hand_add
+        for s in range(1, side + 1):
+            handcraft_table[idxs + s] += hand_add
+            handcraft_table[idxs - s] += hand_add
 
         for idx in idxs:
-            handcraft_table[idx - 2 : idx + 2] -= hand_sub
-            handcraft_table[idx - 1 : idx + 1] += hand_sub
+            handcraft_table[idx - side * 2 : idx + side * 2] -= hand_sub
+            handcraft_table[idx - side * 1 : idx + side * 1] += hand_sub
         handcraft_table_ls.append(handcraft_table)
-    # aa = map(int, data_ids)
+
     correspond_table = np.array([*map(int, data_ids)], dtype=np.int16)
 
     return handcraft_table_ls, correspond_table

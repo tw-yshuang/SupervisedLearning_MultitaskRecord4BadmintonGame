@@ -44,7 +44,7 @@ class TestEvaluate:
         start_idx += data_id + self.side
         # start_idx += data_id
         handcraft = self.handcraft_table_ls[idx][start_idx : start_idx + self.len_one_data]
-        if handcraft.shape[0] == 5:
+        if handcraft.shape[0] == self.len_one_data:
             pred[: self.len_one_data] += handcraft
         return pred
 
@@ -124,17 +124,11 @@ if __name__ == '__main__':
         correspond_table=correspond_table,
     )
 
-    # acc_records = te.predict(withHandCraft=True)
-    # print(acc_records)
-    # model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_records)
-    # model_perform.acc_df.to_csv(f'train_acc1.csv')
-
-    # acc_records = te.predict(withHandCraft=False)
-    # print(acc_records)
-    # model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_records)
-    # model_perform.acc_df.to_csv(f'train_acc2.csv')
-
     acc_records, acc_hand_records = te.predict()
     model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_hand_records)
     model_perform.loss_df.to_csv('train_acc.csv')
     model_perform.acc_df.to_csv('train_hand_acc.csv')
+
+    print(f" non-hand: {model_perform.loss_df['HitFrame'].mean():.3f}")
+    print(f"with-hand: {model_perform.acc_df['HitFrame'].mean():.3f}")
+    print(f"      gap: {model_perform.acc_df['HitFrame'].mean() - model_perform.loss_df['HitFrame'].mean()}")
