@@ -42,9 +42,9 @@ model_acc_names = [
 def calculate(preds: torch.Tensor, labels: torch.Tensor, hit_idxs: torch.Tensor, isHits: torch.Tensor):
     with torch.no_grad():
         hit_preds, not_hit_preds, hit_labels, hitFrame_idxs_select = (
-            preds[isHits].squeeze(dim=0),
-            preds[~isHits].squeeze(dim=0),
-            labels[isHits].squeeze(dim=0),
+            preds[isHits].view(-1, labels.shape[-1]),
+            preds[~isHits].view(-1, labels.shape[-1]),
+            labels[isHits].view(-1, labels.shape[-1]),
             hit_idxs[isHits].squeeze(dim=0).type(torch.int),
         )
 
@@ -52,13 +52,13 @@ def calculate(preds: torch.Tensor, labels: torch.Tensor, hit_idxs: torch.Tensor,
 
         # miss factor analysis
         missHP = hit_preds[:, miss_idx].mean()
-        if not_hit_preds.nelement() != 0:
+        if not_hit_preds.nelement() == 0:
+            missMP = torch.tensor(0.0, device=hit_preds.device)
+            missM = torch.tensor(0.0, device=hit_preds.device)
+        else:
             missMP = not_hit_preds[:, miss_idx].mean()
             not_hit_pred_idxs = not_hit_preds[:, :idx_Hitter_start].argmax(dim=1)
             missM = (not_hit_pred_idxs == miss_idx).sum() / not_hit_preds.shape[0]
-        else:
-            missMP = torch.tensor(0.0)
-            missM = torch.tensor(0.0)
 
         start_idx = 0
         cls_acc_tensor = torch.zeros(num_cls_task, dtype=torch.float32, device=preds.device)
@@ -79,7 +79,9 @@ def calculate(preds: torch.Tensor, labels: torch.Tensor, hit_idxs: torch.Tensor,
         reg_acc_tensor = 1 - torch.abs(hit_labels[:, idx_LandingX_start:] - hit_preds[:, idx_LandingX_start:]).mean(dim=0)
 
         if missMP.isnan() or missM.isnan():
-            missMP, missM = torch.zeros_like(missMP), torch.zeros_like(missM)
+            missMP, missM = torch.zeros_like(missMP, device=cls_acc_tensor.device), torch.zeros_like(
+                missM, device=cls_acc_tensor.device
+            )
 
         acc_record = torch.hstack(
             [

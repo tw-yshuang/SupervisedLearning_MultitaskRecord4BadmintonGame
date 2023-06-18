@@ -41,15 +41,16 @@ class TestEvaluate:
 
     def handcraft(self, pred: torch.Tensor, video_id: int, data_id: int, start_idx: int):
         idx = int(np.where(self.correspond_table == video_id)[0])
-        # start_idx += data_id + self.side
-        start_idx += data_id
+        start_idx += data_id + self.side
+        # start_idx += data_id
         handcraft = self.handcraft_table_ls[idx][start_idx : start_idx + self.len_one_data]
         if handcraft.shape[0] == 5:
             pred[: self.len_one_data] += handcraft
         return pred
 
-    def predict(self, withHandCraft: bool = False):
+    def predict(self):  # , withHandCraft: bool = False):
         acc_records = np.zeros((len(self.dataset), len(model_acc_names)), dtype=np.float32)
+        acc_hand_records = np.zeros((len(self.dataset), len(model_acc_names)), dtype=np.float32)
         self.model.eval()
         with torch.no_grad():
             for self.order_id in range(len(self.dataset)):
@@ -73,18 +74,20 @@ class TestEvaluate:
                 label[:, BadmintonNetOperator.end_idx_orders[-2] + 1 :: 2] = batch_coordXYs[1]
 
                 pred = self.model(data).cpu()
-                if withHandCraft:
-                    pred = self.handcraft(pred.squeeze(), video_id, data_id, start_idx).unsqueeze(dim=0)
-
                 acc_records[self.order_id, :] += self.acc_func(pred, label, hit_idxs, isHits).cpu().numpy()
 
-        return acc_records
+                # if withHandCraft:
+                #     pred = self.handcraft(pred.squeeze(), video_id, data_id, start_idx).unsqueeze(dim=0)
+                pred = self.handcraft(pred.squeeze(), video_id, data_id, start_idx).unsqueeze(dim=0)
+                acc_hand_records[self.order_id, :] += self.acc_func(pred, label, hit_idxs, isHits).cpu().numpy()
+
+        return acc_records, acc_hand_records
 
 
 if __name__ == '__main__':
-    device = 'cuda:1'
-    side_range = 2
-    model_path = 'out/0612-2335_BadmintonNet_BS-15_AdamW1.00e-04_Side2/bestAcc-HitFrameP.pt'
+    device = 'cuda:2'
+    side_range = 1
+    model_path = 'out/0616-1825_BadmintonNet_BS-15_AdamW1.00e-04_Side1/bestAcc-HitFrame.pt'
     test_dir = DatasetInfo.data_dir / 'test'
 
     sizeHW = (512, 512)
@@ -102,7 +105,7 @@ if __name__ == '__main__':
     source_dir = 'Data/AIdea_used/pre-process'
     sub_dir = 'ball_mask5_dir'
 
-    handcraft_table_ls, correspond_table = get_static_handcraft_table(target_dir, source_dir, sub_dir, 1)
+    handcraft_table_ls, correspond_table = get_static_handcraft_table(target_dir, source_dir, sub_dir, side_range)
 
     test_info = DatasetInfo(data_dir=test_dir)
     test_dataset = Frame13Dataset(side_range, dataset_info=test_info)
@@ -112,7 +115,7 @@ if __name__ == '__main__':
 
     te = TestEvaluate(
         net,
-        2,
+        side_range,
         test_dataset,
         test_iter_compose,
         calculate,
@@ -121,12 +124,17 @@ if __name__ == '__main__':
         correspond_table=correspond_table,
     )
 
-    acc_records = te.predict(withHandCraft=True)
-    print(acc_records)
-    model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_records)
-    model_perform.acc_df.to_csv(f'train_acc1.csv')
+    # acc_records = te.predict(withHandCraft=True)
+    # print(acc_records)
+    # model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_records)
+    # model_perform.acc_df.to_csv(f'train_acc1.csv')
 
-    acc_records = te.predict(withHandCraft=False)
-    print(acc_records)
-    model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_records)
-    model_perform.acc_df.to_csv(f'train_acc2.csv')
+    # acc_records = te.predict(withHandCraft=False)
+    # print(acc_records)
+    # model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_records)
+    # model_perform.acc_df.to_csv(f'train_acc2.csv')
+
+    acc_records, acc_hand_records = te.predict()
+    model_perform = ModelPerform(model_acc_names, model_acc_names, loss_records=acc_records, acc_records=acc_hand_records)
+    model_perform.loss_df.to_csv('train_acc.csv')
+    model_perform.acc_df.to_csv('train_hand_acc.csv')
