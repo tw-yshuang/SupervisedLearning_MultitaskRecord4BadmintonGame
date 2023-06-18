@@ -20,9 +20,9 @@ if __name__ == '__main__':
 
 from submodules.UsefulTools.FileTools.WordOperator import str_format
 from submodules.UsefulTools.FileTools.PickleOperator import load_pickle
-from src.net.net import BadmintonNet
+from src.net.net import BadmintonNet, BadmintonNetOperator
 from src.transforms import IterativeCustomCompose
-from src.accuracy import calculate, model_acc_names
+from src.evaluate.accuracy import calculate, model_acc_names
 
 
 class ModelPerform:
@@ -38,19 +38,29 @@ class ModelPerform:
         self.acc_df = pd.DataFrame(self.convert(acc_records, acc_order_names))
         self.loss_df = pd.DataFrame(self.convert(loss_records, loss_order_names))
 
-        if test_acc_records is not None:
-            self.test_loss_df = pd.DataFrame(self.convert(test_acc_records, acc_order_names))
-            self.test_acc_df = pd.DataFrame(self.convert(test_loss_records, loss_order_names))
+        self.haveTestRecords = test_acc_records is not None
+        if self.haveTestRecords:
+            self.test_loss_df = pd.DataFrame(self.convert(test_loss_records, loss_order_names))
+            self.test_acc_df = pd.DataFrame(self.convert(test_acc_records, acc_order_names))
 
     @staticmethod
     def convert(records: torch.Tensor, order_names: List[str]):
         return {name: records[:, i].tolist() for i, name in enumerate(order_names)}
+
+    def save(self, saveDir: str, start_row: int = 0, end_row: int = None):
+        self.loss_df[start_row:end_row].to_csv(f'{saveDir}/train_loss.csv')
+        self.acc_df[start_row:end_row].to_csv(f'{saveDir}/train_acc.csv')
+
+        if self.haveTestRecords:
+            self.test_loss_df[start_row:end_row].to_csv(f'{saveDir}/val_loss.csv')
+            self.test_acc_df[start_row:end_row].to_csv(f'{saveDir}/val_acc.csv')
 
 
 class DL_Model:
     def __init__(
         self,
         model: Union[nn.Module, BadmintonNet],
+        model_operator: BadmintonNetOperator,
         train_transforms: IterativeCustomCompose,
         test_transforms: IterativeCustomCompose,
         device: str = 'cuda',
@@ -58,6 +68,7 @@ class DL_Model:
         acc_func: Callable = None,
     ) -> None:
         self.model = model
+        self.model_operator = model_operator
         self.train_transforms = train_transforms
         self.test_transforms = test_transforms
         self.device = device
@@ -66,12 +77,12 @@ class DL_Model:
 
         self.console = Console()
         self.loss_order_names = [*self.model.sub_model_order_names, 'Sum']
-        self.acc_order_names = [*model_acc_names, 'Mean']
+        self.acc_order_names = model_acc_names
 
         self.epoch = 0
         self.best_epoch = 0
-        self.best_loss_record = torch.ones(8, dtype=torch.float32) * 100
-        self.best_acc_record = torch.ones(13, dtype=torch.float32) * 0
+        self.best_loss_record = torch.ones(len(self.loss_order_names), dtype=torch.float32) * 100
+        self.best_acc_record = torch.ones(len(self.acc_order_names), dtype=torch.float32) * 0
 
     def create_measure_table(self):
         loss_table = Table(show_header=True, header_style='bold magenta')
@@ -91,22 +102,22 @@ class DL_Model:
         loss_record = torch.zeros_like(self.best_loss_record)
         acc_record = torch.zeros_like(self.best_acc_record)
         with torch.no_grad():
-            for data, label, hit_idxs, isHits in tqdm(loader):
+            for data, label, hit_idxs, isHits, _ in tqdm(loader):
                 data, label = data.to(self.device), label.to(self.device)
 
                 batch_coordXYs = torch.stack(
-                    [label[:, self.model.end_idx_orders[-2] :: 2], label[:, self.model.end_idx_orders[-2] + 1 :: 2]],
+                    [label[:, self.model_operator.end_idx_orders[-2] :: 2], label[:, self.model_operator.end_idx_orders[-2] + 1 :: 2]],
                 ).permute(
                     1, 0, 2
                 )  # stack like: [[relatedX, ...], [relatedY, ...]]
 
                 data, batch_coordXYs = self.test_transforms(data, batch_coordXYs)
                 batch_coordXYs = batch_coordXYs.permute(1, 0, 2)
-                label[:, self.model.end_idx_orders[-2] :: 2] = batch_coordXYs[0]
-                label[:, self.model.end_idx_orders[-2] + 1 :: 2] = batch_coordXYs[1]
+                label[:, self.model_operator.end_idx_orders[-2] :: 2] = batch_coordXYs[0]
+                label[:, self.model_operator.end_idx_orders[-2] + 1 :: 2] = batch_coordXYs[1]
 
                 pred = self.model(data)
-                loss_record[:] += self.model.update(pred, label, isTrain=False).cpu()
+                loss_record[:] += self.model_operator.update(pred, label, isTrain=False).cpu()
                 acc_record[:] += self.acc_func(pred, label, hit_idxs, isHits).cpu()
                 num_iter += 1
 
@@ -143,30 +154,37 @@ class DL_Model:
 
             isBest = False
             num_iter = 0
+            num_missM_nan = 0
             self.model.train()
-            for data, label, hit_idxs, isHits in tqdm(loader):
+            for data, label, hit_idxs, isHits, _ in tqdm(loader):
                 data, label = data.to(self.device), label.to(self.device)
 
                 with torch.no_grad():
                     batch_coordXYs = torch.stack(
-                        [label[:, self.model.end_idx_orders[-2] :: 2], label[:, self.model.end_idx_orders[-2] + 1 :: 2]],
+                        [
+                            label[:, self.model_operator.end_idx_orders[-2] :: 2],
+                            label[:, self.model_operator.end_idx_orders[-2] + 1 :: 2],
+                        ],
                     ).permute(
                         1, 0, 2
                     )  # stack like: [[relatedX, ...], [relatedY, ...]]
 
                     data, batch_coordXYs = self.train_transforms(data, batch_coordXYs)
                     batch_coordXYs = batch_coordXYs.permute(1, 0, 2)
-                    label[:, self.model.end_idx_orders[-2] :: 2] = batch_coordXYs[0]
-                    label[:, self.model.end_idx_orders[-2] + 1 :: 2] = batch_coordXYs[1]
+                    label[:, self.model_operator.end_idx_orders[-2] :: 2] = batch_coordXYs[0]
+                    label[:, self.model_operator.end_idx_orders[-2] + 1 :: 2] = batch_coordXYs[1]
 
                 # data, label = data.to(self.device), label.to(self.device)
                 pred = self.model(data)
-                loss_records[self.epoch] += self.model.update(pred, label).cpu()
-                acc_records[self.epoch] += self.acc_func(pred, label, hit_idxs, isHits).cpu()
+                loss_records[self.epoch] += self.model_operator.update(pred, label).cpu()
+                a_r = self.acc_func(pred, label, hit_idxs, isHits).cpu()
+                num_missM_nan += 1 - (a_r[-1] // (a_r[-1] - 0.0000001))
+                acc_records[self.epoch] += a_r
                 num_iter += 1
 
             loss_records[self.epoch] /= num_iter
-            acc_records[self.epoch] /= num_iter
+            acc_records[self.epoch, :-2] /= num_iter
+            acc_records[self.epoch, -2:] /= num_iter - num_missM_nan
 
             loss_table.add_row('Train', *[f'{l:.3e}' for l in loss_records[self.epoch]])
             acc_table.add_row('Train', *[f'{a:.3f}' for a in acc_records[self.epoch]])
@@ -193,10 +211,10 @@ class DL_Model:
             # * Save Stage
             isCheckpoint = self.epoch % checkpoint == 0
             if self.best_epoch:
-                save_path = f'lossSum-{val_loss_records[self.epoch, -1]:.3e}_accMean-{val_acc_records[self.epoch, -1]:.3f}.pt'
+                save_path = f'lossSum-{val_loss_records[self.epoch, -1]:.3e}_accMean-{val_acc_records[self.epoch, -6]:.3f}.pt'
                 isStop = early_stop == (self.epoch - self.best_epoch)
             else:
-                save_path = f'lossSum-{loss_records[self.epoch, -1]:.3e}_accMean-{acc_records[self.epoch, -1]:.3f}.pt'
+                save_path = f'lossSum-{loss_records[self.epoch, -1]:.3e}_accMean-{acc_records[self.epoch, -6]:.3f}.pt'
 
             save_path_heads: List[str] = []
             if isCheckpoint:
@@ -216,8 +234,17 @@ class DL_Model:
             for i, path_head in enumerate(save_path_heads):
                 if i == 0:
                     epoch_path = f'e{self.epoch:03}_{save_path}'
-                    self.model.save(saveDir / epoch_path)
+                    self.model_operator.save(self.model, str(saveDir / epoch_path))
                     print(f"Save Model: {str_format(str(epoch_path), fore='g')}")
+                    model_perform = ModelPerform(
+                        self.loss_order_names,
+                        self.acc_order_names,
+                        loss_records[: self.epoch + 1],
+                        acc_records[: self.epoch + 1],
+                        val_loss_records[: self.epoch + 1],
+                        val_acc_records[: self.epoch + 1],
+                    )
+                    model_perform.save(str(saveDir))
 
                 path: Path = saveDir / f'{path_head}.pt'
                 path.unlink(missing_ok=True)

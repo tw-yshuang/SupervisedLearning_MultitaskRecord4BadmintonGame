@@ -21,6 +21,7 @@ numba = "*"
 numpy = "*"
 tqdm = "*"
 rich = "*"
+matplotlib = "*"
 
 [dev-packages]
 black = "*"

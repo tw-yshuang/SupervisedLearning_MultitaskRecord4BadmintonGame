@@ -29,7 +29,7 @@ class Conveter(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        return torch.squeeze(x)
+        return torch.squeeze(x, dim=1)
 
 
 class EffNet(nn.Module):
