@@ -6,7 +6,8 @@
 
 ## Paper
 
-https://ieeexplore.ieee.org/abstract/document/10317491
+Accepted for Oral Presentation at **APSIPA 2023**.
+Link: <https://ieeexplore.ieee.org/abstract/document/10317491>
 
 ## Citation
 
